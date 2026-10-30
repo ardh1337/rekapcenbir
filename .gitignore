@@ -1,0 +1,8 @@
+node_modules/
+.env
+data/*.sqlite
+storage/photos/*
+storage/reports/*
+!storage/photos/.gitkeep
+!storage/reports/.gitkeep
+
