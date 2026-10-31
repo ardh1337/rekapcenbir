@@ -298,6 +298,45 @@ bot.command(['banned', 'ban'], async (ctx) => {
   }
 });
 
+bot.command(['hapus', 'del', 'delete'], async (ctx) => {
+  try {
+    const text = (ctx.message.text || '').trim();
+    const matches = text.match(/(?:\+?62|08|8)\d{8,13}|\b\d{9,15}\b/g) || [];
+
+    if (matches.length === 0 && ctx.message.reply_to_message) {
+      const replyText = ctx.message.reply_to_message.text || ctx.message.reply_to_message.caption || '';
+      const replyMatches = replyText.match(/(?:\+?62|08|8)\d{8,13}|\b\d{9,15}\b/g) || [];
+      matches.push(...replyMatches);
+    }
+
+    if (matches.length === 0) {
+      return ctx.reply('Format: <code>/hapus [nomor_hp]</code>\nContoh: <code>/hapus 12034181192</code>', { parse_mode: 'HTML' });
+    }
+
+    const uniquePhones = [...new Set(matches.map(m => formatPhoneNumber(m)).filter(Boolean))];
+    const results = [];
+
+    for (const phone of uniquePhones) {
+      const res = db.deleteEntryByPhone(phone);
+      if (res.deletedCount > 0) {
+        for (const p of res.photoPaths) {
+          if (fs.existsSync(p)) {
+            try { fs.unlinkSync(p); } catch {}
+          }
+        }
+        results.push(`Nomor <b>${escapeHtml(phone)}</b> berhasil dihapus.`);
+      } else {
+        results.push(`Nomor <b>${escapeHtml(phone)}</b> tidak ditemukan.`);
+      }
+    }
+
+    await ctx.reply(results.join('\n'), { parse_mode: 'HTML' });
+  } catch (err) {
+    console.error('Error handling /hapus command:', err);
+    ctx.reply('Terjadi kesalahan saat menghapus data.');
+  }
+});
+
 // ----------------- REACTIVE PHOTO & CAPTION HANDLER -----------------
 
 bot.on('photo', async (ctx) => {
@@ -1002,14 +1041,16 @@ export async function startApp() {
       { command: 'data', description: 'Lihat Data' },
       { command: 'report', description: 'Kirim Report Album' },
       { command: 'banned', description: 'Tandai Banned (/banned nomor)' },
-      { command: 'aktif', description: 'Tandai Aktif/Unban (/aktif nomor)' }
+      { command: 'aktif', description: 'Tandai Aktif/Unban (/aktif nomor)' },
+      { command: 'hapus', description: 'Hapus data nomor (/hapus nomor)' }
     ]).catch(() => {});
 
-    bot.launch(() => {
+    try {
+      await bot.launch();
       console.log('✅ Bot Telegram berhasil berjalan dan siap menerima pesan!');
-    }).catch(err => {
+    } catch (err) {
       console.error('❌ Gagal menjalankan Bot Telegram:', err.message);
-    });
+    }
   } else {
     console.log('ℹ️ Bot siap. Masukkan BOT_TOKEN di file .env lalu jalankan "npm start".');
   }
@@ -1019,7 +1060,5 @@ export async function startApp() {
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
-// If executed directly
-if (process.argv[1] && process.argv[1].endsWith('bot.js')) {
-  startApp();
-}
+// Always start the bot
+startApp();

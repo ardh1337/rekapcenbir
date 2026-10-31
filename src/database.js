@@ -268,6 +268,28 @@ export function findEntryByPhone(phoneNumber) {
 }
 
 /**
+ * Delete entry by phone number and return removed photo paths
+ */
+export function deleteEntryByPhone(phoneNumber) {
+  const clean = String(phoneNumber).replace(/[\s\-\.\(\)\+]/g, '');
+  const rows = db.prepare(`
+    SELECT photo_path FROM entries 
+    WHERE phone_number = ? OR REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+', '') = ?;
+  `).all(phoneNumber, clean);
+
+  const stmt = db.prepare(`
+    DELETE FROM entries 
+    WHERE phone_number = ? OR REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+', '') = ?;
+  `);
+  const info = stmt.run(phoneNumber, clean);
+
+  return {
+    deletedCount: info.changes,
+    photoPaths: rows.map(r => r.photo_path).filter(Boolean)
+  };
+}
+
+/**
  * Get distinct input dates ordered chronologically descending (most recent first)
  */
 export function getDistinctInputDates() {
